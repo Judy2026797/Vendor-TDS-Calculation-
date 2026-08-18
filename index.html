@@ -176,6 +176,7 @@ const LS_KEY     = "tds_calc_config_v2";
 const LS_RECENT  = "tds_calc_recent_v2";
 const LS_PIN     = "tds_calc_pin";
 const DEFAULT_PIN = "2026";
+const YEAR_MS    = 365*24*3600*1000;
 
 let state  = loadState();
 let recent = pruneRecent(loadRecent());
@@ -201,7 +202,6 @@ function loadRecent(){
   try{ const r=JSON.parse(localStorage.getItem(LS_RECENT)); if(Array.isArray(r)) return r; }catch(e){}
   return [];
 }
-const YEAR_MS = 365*24*3600*1000;
 function pruneRecent(arr){
   const cut = Date.now() - YEAR_MS;
   return (arr||[]).filter(r => (r.at||0) > cut);
