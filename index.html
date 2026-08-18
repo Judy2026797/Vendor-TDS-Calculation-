@@ -50,7 +50,7 @@
   .toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
   .hint{font-size:12px;color:var(--warn);margin-top:12px}
   .formula{font-size:12px;color:var(--muted);background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:14px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .recent{list-style:none;margin:0;padding:0}
+  .recent{list-style:none;margin:0;padding:0;max-height:520px;overflow:auto}
   .recent li{font-size:13px;padding:8px 0;border-bottom:1px dashed var(--line);display:flex;justify-content:space-between;gap:10px;align-items:baseline}
   .recent li:last-child{border-bottom:none}
   .recent li .meta{color:var(--muted);font-size:11px}
@@ -97,12 +97,16 @@
       </div>
       <div class="verify ok" id="verify">✓ Payable + TDS = Inclusive amount</div>
     </div>
+    <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn sm primary" id="saveHist">＋ Save to history</button>
+      <span style="font-size:11px;color:var(--muted)">Auto-saved on Enter / click-away. Kept for 12 months.</span>
+    </div>
     <div class="formula">exclusive = inclusive ÷ (1 + GST%)<br/>TDS = round(exclusive × TDS%) &nbsp;<small style="color:#b91c1c">(rounded to integer)</small><br/>payable = inclusive − TDS</div>
   </div>
 
   <!-- Recent (always visible for everyone) -->
   <div class="card">
-    <h2>Recent Calculations <small>(last 8)</small></h2>
+    <h2>Recent Calculations <small>(kept 12 months)</small></h2>
     <ul class="recent" id="recent"></ul>
     <p id="recentEmpty" style="color:var(--muted);font-size:13px;margin:8px 0 0">No calculations yet.</p>
   </div>
@@ -170,7 +174,7 @@ const LS_PIN     = "tds_calc_pin";
 const DEFAULT_PIN = "2026";
 
 let state  = loadState();
-let recent = loadRecent();
+let recent = pruneRecent(loadRecent());
 
 function loadState(){
   try{ const s=JSON.parse(localStorage.getItem(LS_KEY)); if(s&&s.length) return s; }catch(e){}
@@ -182,7 +186,12 @@ function loadRecent(){
   try{ const r=JSON.parse(localStorage.getItem(LS_RECENT)); if(Array.isArray(r)) return r; }catch(e){}
   return [];
 }
-function saveRecent(){ localStorage.setItem(LS_RECENT, JSON.stringify(recent.slice(0,8))); }
+const YEAR_MS = 365*24*3600*1000;
+function pruneRecent(arr){
+  const cut = Date.now() - YEAR_MS;
+  return (arr||[]).filter(r => (r.at||0) > cut);
+}
+function saveRecent(){ localStorage.setItem(LS_RECENT, JSON.stringify(recent)); }
 
 function getPin(){
   return (localStorage.getItem(LS_PIN) || DEFAULT_PIN);
@@ -246,12 +255,21 @@ function recalc(){
   v.className="verify "+(ok?"ok":"bad");
   v.textContent= ok? "✓ Payable + TDS = Inclusive amount" : "✗ Mismatch — check rates";
   res.style.display="block";
-  addRecent(sup, amt, exclusive, tdsAmt, payable);
 }
 
-function addRecent(sup,amt,ex,tds,pay){
-  recent.unshift({name:sup.name,amt,ex,tds,pay,g:sup.gst,t:sup.tds,at:Date.now()});
-  recent=recent.slice(0,8);
+function commitRecent(){
+  const supName=document.getElementById("supplier").value;
+  const amt=parseFloat(document.getElementById("amount").value);
+  const sup=supByName(supName);
+  if(!sup || !(amt>0)) return;
+  const last=recent[0];
+  if(last && last.name===supName && Math.abs((last.amt||0)-amt)<0.001) return; // skip identical repeat
+  const gst=sup.gst/100, tds=sup.tds/100;
+  const exclusive=amt/(1+gst);
+  const tdsAmt=Math.round(exclusive*tds);
+  const payable=amt-tdsAmt;
+  recent.unshift({name:sup.name,amt,ex:exclusive,tds:tdsAmt,pay:payable,g:sup.gst,t:sup.tds,at:Date.now()});
+  recent=pruneRecent(recent);
   saveRecent();
   renderRecent();
 }
@@ -340,8 +358,10 @@ document.getElementById("setPin").addEventListener("click",()=>{
   m.classList.add("ok");
   setTimeout(()=>m.classList.remove("ok"),2000);
 });
-document.getElementById("supplier").addEventListener("change",recalc);
+document.getElementById("supplier").addEventListener("change",()=>{ recalc(); commitRecent(); });
 document.getElementById("amount").addEventListener("input",recalc);
+document.getElementById("amount").addEventListener("change",commitRecent);
+document.getElementById("saveHist").addEventListener("click",commitRecent);
 
 /* ---------- init ---------- */
 function renderAll(){ renderRecent(); renderSupplierSelect(); recalc(); }
