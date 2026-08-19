@@ -401,13 +401,8 @@ document.getElementById("amount").addEventListener("keydown",e=>{ if(e.key==="En
 function renderAll(){ renderRecent(); renderSupplierSelect(); recalc(); }
 renderAll();
 
-// Defensive: if dropdown still empty after renderAll, something is truly broken
-console.info("[TDS Calculator] v7 · state:", state.length, "vendors · pin:", getPin() === DEFAULT_PIN ? "default" : "custom");
-if (state.length === 0) {
-  // Should never happen after loadState fix, but if it does, surface clearly
-  showToast("⚠ Vendor list failed to load — opening Admin panel to reset", "err", 5000);
-  setAdminVisible(true);
-}
+// Debug snapshot — open DevTools console to inspect the loaded state
+console.info("[TDS Calculator] v8 · state:", state.length, "vendors · pin:", getPin() === DEFAULT_PIN ? "default" : "custom");
 </script>
 </body>
 </html>
